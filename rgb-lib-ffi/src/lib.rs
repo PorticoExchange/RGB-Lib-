@@ -3,30 +3,40 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard};
 
-uniffi_macros::include_scaffolding!("rgb-lib");
+uniffi::include_scaffolding!("rgb-lib");
 
+type AssetIface = rgb_lib::wallet::AssetIface;
 type AssetRgb20 = rgb_lib::wallet::AssetRgb20;
-type AssetRgb121 = rgb_lib::wallet::AssetRgb121;
-type AssetType = rgb_lib::wallet::AssetType;
+type AssetRgb25 = rgb_lib::wallet::AssetRgb25;
+type AssetSchema = rgb_lib::wallet::AssetSchema;
 type Assets = rgb_lib::wallet::Assets;
 type Balance = rgb_lib::wallet::Balance;
-type InvoiceData = rgb_lib::wallet::InvoiceData;
 type BitcoinNetwork = rgb_lib::BitcoinNetwork;
 type BlindData = rgb_lib::wallet::BlindData;
+type BlockTime = rgb_lib::wallet::BlockTime;
 type DatabaseType = rgb_lib::wallet::DatabaseType;
-type RgbLibInvoice = rgb_lib::wallet::Invoice;
+type InvoiceData = rgb_lib::wallet::InvoiceData;
 type Keys = rgb_lib::keys::Keys;
 type Media = rgb_lib::wallet::Media;
 type Metadata = rgb_lib::wallet::Metadata;
 type Online = rgb_lib::wallet::Online;
 type Outpoint = rgb_lib::wallet::Outpoint;
 type Recipient = rgb_lib::wallet::Recipient;
+type RefreshFilter = rgb_lib::wallet::RefreshFilter;
+type RefreshTransferStatus = rgb_lib::wallet::RefreshTransferStatus;
 type RgbAllocation = rgb_lib::wallet::RgbAllocation;
 type RgbLibBlindedUTXO = rgb_lib::wallet::BlindedUTXO;
 type RgbLibError = rgb_lib::Error;
+type RgbLibInvoice = rgb_lib::wallet::Invoice;
+type RgbLibTransportEndpoint = rgb_lib::wallet::TransportEndpoint;
 type RgbLibWallet = rgb_lib::wallet::Wallet;
+type Transaction = rgb_lib::wallet::Transaction;
+type TransactionType = rgb_lib::wallet::TransactionType;
 type Transfer = rgb_lib::wallet::Transfer;
-type TransferStatus = rgb_lib::wallet::TransferStatus;
+type TransferKind = rgb_lib::wallet::TransferKind;
+type TransferStatus = rgb_lib::TransferStatus;
+type TransferTransportEndpoint = rgb_lib::wallet::TransferTransportEndpoint;
+type TransportType = rgb_lib::TransportType;
 type Unspent = rgb_lib::wallet::Unspent;
 type Utxo = rgb_lib::wallet::Utxo;
 type WalletData = rgb_lib::wallet::WalletData;
@@ -37,6 +47,14 @@ fn generate_keys(bitcoin_network: BitcoinNetwork) -> Keys {
 
 fn restore_keys(bitcoin_network: BitcoinNetwork, mnemonic: String) -> Result<Keys, RgbLibError> {
     rgb_lib::restore_keys(bitcoin_network, mnemonic)
+}
+
+fn restore_backup(
+    backup_path: String,
+    password: String,
+    data_dir: String,
+) -> Result<(), RgbLibError> {
+    rgb_lib::restore_backup(&backup_path, &password, &data_dir)
 }
 
 struct BlindedUTXO {
@@ -51,14 +69,34 @@ impl BlindedUTXO {
     }
 }
 
+struct TransportEndpoint {
+    transport_endpoint: RwLock<RgbLibTransportEndpoint>,
+}
+
+impl TransportEndpoint {
+    fn new(transport_endpoint: String) -> Result<Self, RgbLibError> {
+        Ok(TransportEndpoint {
+            transport_endpoint: RwLock::new(RgbLibTransportEndpoint::new(transport_endpoint)?),
+        })
+    }
+
+    fn _get_transport_endpoint(&self) -> RwLockReadGuard<RgbLibTransportEndpoint> {
+        self.transport_endpoint.read().expect("transport_endpoint")
+    }
+
+    fn transport_type(&self) -> TransportType {
+        self._get_transport_endpoint().transport_type()
+    }
+}
+
 struct Invoice {
     invoice: RwLock<RgbLibInvoice>,
 }
 
 impl Invoice {
-    fn new(bech32_invoice: String) -> Result<Self, RgbLibError> {
+    fn new(invoice_string: String) -> Result<Self, RgbLibError> {
         Ok(Invoice {
-            invoice: RwLock::new(RgbLibInvoice::new(bech32_invoice)?),
+            invoice: RwLock::new(RgbLibInvoice::new(invoice_string)?),
         })
     }
 
@@ -76,8 +114,8 @@ impl Invoice {
         self._get_invoice().invoice_data()
     }
 
-    fn bech32_invoice(&self) -> String {
-        self._get_invoice().bech32_invoice()
+    fn invoice_string(&self) -> String {
+        self._get_invoice().invoice_string()
     }
 }
 
@@ -96,13 +134,19 @@ impl Wallet {
         self.wallet_mutex.lock().expect("wallet")
     }
 
+    fn backup(&self, backup_path: String, password: String) -> Result<(), RgbLibError> {
+        self._get_wallet().backup(&backup_path, &password)
+    }
+
     fn blind(
         &self,
         asset_id: Option<String>,
         amount: Option<u64>,
         duration_seconds: Option<u32>,
+        transport_endpoints: Vec<String>,
     ) -> Result<BlindData, RgbLibError> {
-        self._get_wallet().blind(asset_id, amount, duration_seconds)
+        self._get_wallet()
+            .blind(asset_id, amount, duration_seconds, transport_endpoints)
     }
 
     fn create_utxos(
@@ -111,8 +155,10 @@ impl Wallet {
         up_to: bool,
         num: Option<u8>,
         size: Option<u32>,
+        fee_rate: f32,
     ) -> Result<u8, RgbLibError> {
-        self._get_wallet().create_utxos(online, up_to, num, size)
+        self._get_wallet()
+            .create_utxos(online, up_to, num, size, fee_rate)
     }
 
     fn create_utxos_begin(
@@ -121,9 +167,10 @@ impl Wallet {
         up_to: bool,
         num: Option<u8>,
         size: Option<u32>,
+        fee_rate: f32,
     ) -> Result<String, RgbLibError> {
         self._get_wallet()
-            .create_utxos_begin(online, up_to, num, size)
+            .create_utxos_begin(online, up_to, num, size, fee_rate)
     }
 
     fn create_utxos_end(&self, online: Online, signed_psbt: String) -> Result<u8, RgbLibError> {
@@ -134,8 +181,10 @@ impl Wallet {
         &self,
         blinded_utxo: Option<String>,
         txid: Option<String>,
-    ) -> Result<(), RgbLibError> {
-        self._get_wallet().delete_transfers(blinded_utxo, txid)
+        no_asset_only: bool,
+    ) -> Result<bool, RgbLibError> {
+        self._get_wallet()
+            .delete_transfers(blinded_utxo, txid, no_asset_only)
     }
 
     fn drain_to(
@@ -143,8 +192,10 @@ impl Wallet {
         online: Online,
         address: String,
         destroy_assets: bool,
+        fee_rate: f32,
     ) -> Result<String, RgbLibError> {
-        self._get_wallet().drain_to(online, address, destroy_assets)
+        self._get_wallet()
+            .drain_to(online, address, destroy_assets, fee_rate)
     }
 
     fn drain_to_begin(
@@ -152,9 +203,10 @@ impl Wallet {
         online: Online,
         address: String,
         destroy_assets: bool,
+        fee_rate: f32,
     ) -> Result<String, RgbLibError> {
         self._get_wallet()
-            .drain_to_begin(online, address, destroy_assets)
+            .drain_to_begin(online, address, destroy_assets, fee_rate)
     }
 
     fn drain_to_end(&self, online: Online, signed_psbt: String) -> Result<String, RgbLibError> {
@@ -166,9 +218,10 @@ impl Wallet {
         online: Online,
         blinded_utxo: Option<String>,
         txid: Option<String>,
-    ) -> Result<(), RgbLibError> {
+        no_asset_only: bool,
+    ) -> Result<bool, RgbLibError> {
         self._get_wallet()
-            .fail_transfers(online, blinded_utxo, txid)
+            .fail_transfers(online, blinded_utxo, txid, no_asset_only)
     }
 
     fn get_address(&self) -> String {
@@ -191,10 +244,9 @@ impl Wallet {
         &self,
         skip_consistency_check: bool,
         electrum_url: String,
-        proxy_url: String,
     ) -> Result<Online, RgbLibError> {
         self._get_wallet()
-            .go_online(skip_consistency_check, electrum_url, proxy_url)
+            .go_online(skip_consistency_check, electrum_url)
     }
 
     fn issue_asset_rgb20(
@@ -209,29 +261,31 @@ impl Wallet {
             .issue_asset_rgb20(online, ticker, name, precision, amounts)
     }
 
-    fn issue_asset_rgb121(
+    fn issue_asset_rgb25(
         &self,
         online: Online,
         name: String,
         description: Option<String>,
         precision: u8,
         amounts: Vec<u64>,
-        parent_id: Option<String>,
         file_path: Option<String>,
-    ) -> Result<AssetRgb121, RgbLibError> {
-        self._get_wallet().issue_asset_rgb121(
+    ) -> Result<AssetRgb25, RgbLibError> {
+        self._get_wallet().issue_asset_rgb25(
             online,
             name,
             description,
             precision,
             amounts,
-            parent_id,
             file_path,
         )
     }
 
-    fn list_assets(&self, filter_asset_types: Vec<AssetType>) -> Result<Assets, RgbLibError> {
-        self._get_wallet().list_assets(filter_asset_types)
+    fn list_assets(&self, filter_asset_ifaces: Vec<AssetIface>) -> Result<Assets, RgbLibError> {
+        self._get_wallet().list_assets(filter_asset_ifaces)
+    }
+
+    fn list_transactions(&self, online: Option<Online>) -> Result<Vec<Transaction>, RgbLibError> {
+        self._get_wallet().list_transactions(online)
     }
 
     fn list_transfers(&self, asset_id: String) -> Result<Vec<Transfer>, RgbLibError> {
@@ -242,8 +296,13 @@ impl Wallet {
         self._get_wallet().list_unspents(settled_only)
     }
 
-    fn refresh(&self, online: Online, asset_id: Option<String>) -> Result<(), RgbLibError> {
-        self._get_wallet().refresh(online, asset_id)
+    fn refresh(
+        &self,
+        online: Online,
+        asset_id: Option<String>,
+        filter: Vec<RefreshFilter>,
+    ) -> Result<bool, RgbLibError> {
+        self._get_wallet().refresh(online, asset_id, filter)
     }
 
     fn send(
@@ -251,8 +310,10 @@ impl Wallet {
         online: Online,
         recipient_map: HashMap<String, Vec<Recipient>>,
         donation: bool,
+        fee_rate: f32,
     ) -> Result<String, RgbLibError> {
-        self._get_wallet().send(online, recipient_map, donation)
+        self._get_wallet()
+            .send(online, recipient_map, donation, fee_rate)
     }
 
     fn send_begin(
@@ -260,9 +321,10 @@ impl Wallet {
         online: Online,
         recipient_map: HashMap<String, Vec<Recipient>>,
         donation: bool,
+        fee_rate: f32,
     ) -> Result<String, RgbLibError> {
         self._get_wallet()
-            .send_begin(online, recipient_map, donation)
+            .send_begin(online, recipient_map, donation, fee_rate)
     }
 
     fn send_end(&self, online: Online, signed_psbt: String) -> Result<String, RgbLibError> {

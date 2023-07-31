@@ -1,15 +1,15 @@
 use super::*;
 
 #[test]
-fn rgb20_success() {
+fn success() {
     initialize();
 
     let (mut wallet, online) = get_funded_wallet!();
 
-    // issue asset
+    // issue RGB20 asset
     let asset = wallet
         .issue_asset_rgb20(
-            online,
+            online.clone(),
             TICKER.to_string(),
             NAME.to_string(),
             PRECISION,
@@ -23,23 +23,19 @@ fn rgb20_success() {
     let transfer = transfer_list.first().unwrap();
     assert_eq!(transfer.amount, AMOUNT);
     assert_eq!(transfer.status, TransferStatus::Settled);
-}
 
-#[test]
-fn rgb121_success() {
-    initialize();
+    drain_wallet(&wallet, online.clone());
+    fund_wallet(wallet.get_address());
+    test_create_utxos_default(&mut wallet, online.clone());
 
-    let (mut wallet, online) = get_funded_wallet!();
-
-    // issue asset
+    // issue RGB25 asset
     let asset = wallet
-        .issue_asset_rgb121(
+        .issue_asset_rgb25(
             online,
             NAME.to_string(),
             Some(DESCRIPTION.to_string()),
             PRECISION,
             vec![AMOUNT],
-            None,
             None,
         )
         .unwrap();
@@ -54,11 +50,9 @@ fn rgb121_success() {
 
 #[test]
 fn fail() {
-    initialize();
-
-    let (wallet, _online) = get_funded_wallet!();
+    let wallet = get_test_wallet(false);
 
     // asset not found
     let result = wallet.list_transfers(s!("rgb1inexistent"));
-    assert!(matches!(result, Err(Error::AssetNotFound(_))));
+    assert!(matches!(result, Err(Error::AssetNotFound { asset_id: _ })));
 }

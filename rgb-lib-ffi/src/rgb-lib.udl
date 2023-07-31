@@ -3,54 +3,66 @@ namespace rgb_lib {
 
   [Throws=RgbLibError]
   Keys restore_keys(BitcoinNetwork bitcoin_network, string mnemonic);
+
+  [Throws=RgbLibError]
+  void restore_backup(string backup_path, string password, string data_dir);
 };
 
 [Error]
-enum RgbLibError {
-  "AllocationsAlreadyAvailable",
-  "AssetNotFound",
-  "BatchTransferNotFound",
-  "BlindedUTXOAlreadyUsed",
-  "CannotChangeOnline",
-  "CannotDeleteTransfer",
-  "CannotFailTransfer",
-  "Electrum",
-  "FailedBdkSync",
-  "FailedBroadcast",
-  "FailedIssuance",
-  "IO",
-  "Inconsistency",
-  "InexistentDataDir",
-  "InsufficientAllocationSlots",
-  "InsufficientBitcoins",
-  "InsufficientSpendableAssets",
-  "InsufficientTotalAssets",
-  "Internal",
-  "InvalidAddress",
-  "InvalidBitcoinKeys",
-  "InvalidBlindedUTXO",
-  "InvalidDescription",
-  "InvalidElectrum",
-  "InvalidFilePath",
-  "InvalidInvoice",
-  "InvalidMnemonic",
-  "InvalidName",
-  "InvalidOnline",
-  "InvalidParentId",
-  "InvalidPsbt",
-  "InvalidPubkey",
-  "InvalidTicker",
-  "NoIssuanceAmounts",
-  "Proxy",
-  "TransferNotFound",
-  "UnknownRgbSchema",
-  "UnsupportedInvoice",
-  "WatchOnly",
+interface RgbLibError {
+  AllocationsAlreadyAvailable();
+  AssetNotFound(string asset_id);
+  BatchTransferNotFound(string txid);
+  BlindedUTXOAlreadyUsed();
+  CannotChangeOnline();
+  CannotDeleteTransfer();
+  CannotFailTransfer();
+  CannotSendToSelf();
+  Electrum(string details);
+  FailedBdkSync(string details);
+  FailedBroadcast(string details);
+  FailedIssuance(string details);
+  IO(string details);
+  Inconsistency(string details);
+  InexistentDataDir();
+  InsufficientAllocationSlots();
+  InsufficientBitcoins(u64 needed, u64 available);
+  InsufficientSpendableAssets(string asset_id);
+  InsufficientTotalAssets(string asset_id);
+  Internal(string details);
+  InvalidAddress(string details);
+  InvalidAssetID(string asset_id);
+  InvalidBitcoinKeys();
+  InvalidBlindedUTXO(string details);
+  InvalidTransportEndpoint(string details);
+  InvalidTransportEndpoints(string details);
+  InvalidDescription(string details);
+  InvalidElectrum(string details);
+  InvalidFeeRate(string details);
+  InvalidFilePath(string file_path);
+  InvalidInvoice(string details);
+  InvalidMnemonic(string details);
+  InvalidName(string details);
+  InvalidPrecision(string details);
+  InvalidPsbt(string details);
+  InvalidPubkey(string details);
+  InvalidTicker(string details);
+  NoIssuanceAmounts();
+  NoValidTransportEndpoint();
+  Offline();
+  Proxy(string details);
+  TransferNotFound(string blinded_utxo);
+  UnknownRgbInterface(string interface);
+  UnknownRgbSchema(string schema_id);
+  UnsupportedTransportType();
+  UnsupportedBackupVersion(string version);
+  UnsupportedInvoice();
+  WatchOnly();
 };
 
-enum AssetType {
-  "Rgb20",
-  "Rgb121",
+enum AssetIface {
+  "RGB20",
+  "RGB25",
 };
 
 dictionary AssetRgb20 {
@@ -61,24 +73,28 @@ dictionary AssetRgb20 {
   Balance balance;
 };
 
+enum AssetSchema {
+  "NIA",
+  "CFA",
+};
+
 dictionary Media {
   string file_path;
   string mime;
 };
 
-dictionary AssetRgb121 {
+dictionary AssetRgb25 {
   string asset_id;
   string name;
   string? description;
   u8 precision;
   Balance balance;
   sequence<Media> data_paths;
-  string? parent_id;
 };
 
 dictionary Assets {
   sequence<AssetRgb20>? rgb20;
-  sequence<AssetRgb121>? rgb121;
+  sequence<AssetRgb25>? rgb25;
 };
 
 dictionary Balance {
@@ -106,27 +122,40 @@ interface BlindedUTXO {
   constructor(string blinded_utxo);
 };
 
+interface TransportEndpoint {
+  [Throws=RgbLibError]
+  constructor(string transport_endpoint);
+
+  TransportType transport_type();
+};
+
+enum TransportType {
+  "JsonRpc",
+};
+
 enum DatabaseType {
   "Sqlite",
 };
 
 interface Invoice {
   [Throws=RgbLibError]
-  constructor(string bech32_invoice);
+  constructor(string invoice_string);
 
   [Name=from_invoice_data, Throws=RgbLibError]
   constructor(InvoiceData invoice_data);
 
   InvoiceData invoice_data();
 
-  string bech32_invoice();
+  string invoice_string();
 };
 
 dictionary InvoiceData {
   string blinded_utxo;
+  AssetIface? asset_iface;
   string? asset_id;
   u64? amount;
   i64? expiration_timestamp;
+  sequence<string> transport_endpoints;
 };
 
 dictionary Keys {
@@ -136,20 +165,19 @@ dictionary Keys {
 };
 
 dictionary Metadata {
-  AssetType asset_type;
+  AssetIface asset_iface;
+  AssetSchema asset_schema;
   u64 issued_supply;
   i64 timestamp;
   string name;
   u8 precision;
   string? ticker;
   string? description;
-  string? parent_id;
 };
 
 dictionary Online {
   u64 id;
   string electrum_url;
-  string proxy_url;
 };
 
 dictionary Outpoint {
@@ -160,12 +188,35 @@ dictionary Outpoint {
 dictionary Recipient {
   string blinded_utxo;
   u64 amount;
+  sequence<string> transport_endpoints;
+};
+
+dictionary RefreshFilter {
+  RefreshTransferStatus status;
+  boolean incoming;
+};
+
+enum RefreshTransferStatus {
+  "WaitingCounterparty",
+  "WaitingConfirmations",
 };
 
 dictionary RgbAllocation {
   string? asset_id;
   u64 amount;
   boolean settled;
+};
+
+dictionary TransferTransportEndpoint {
+  string endpoint;
+  TransportType transport_type;
+  boolean used;
+};
+
+enum TransferKind {
+  "Issuance",
+  "Receive",
+  "Send",
 };
 
 enum TransferStatus {
@@ -175,19 +226,41 @@ enum TransferStatus {
   "Failed",
 };
 
+dictionary Transaction {
+    TransactionType transaction_type;
+    string txid;
+    u64 received;
+    u64 sent;
+    u64? fee;
+    BlockTime? confirmation_time;
+};
+
+enum TransactionType {
+  "RgbSend",
+  "Drain",
+  "CreateUtxos",
+  "Other",
+};
+
+dictionary BlockTime {
+  u32 height;
+  u64 timestamp;
+};
+
 dictionary Transfer {
   i64 idx;
   i64 created_at;
   i64 updated_at;
   TransferStatus status;
   u64 amount;
-  boolean incoming;
+  TransferKind kind;
   string? txid;
   string? blinded_utxo;
   Outpoint? unblinded_utxo;
   Outpoint? change_utxo;
   u64? blinding_secret;
   i64? expiration;
+  sequence<TransferTransportEndpoint> transport_endpoints;
 };
 
 dictionary Unspent {
@@ -214,31 +287,35 @@ interface Wallet {
   constructor(WalletData wallet_data);
 
   [Throws=RgbLibError]
-  BlindData blind(string? asset_id, u64? amount, u32? duration_seconds);
+  void backup(string backup_path, string password);
 
   [Throws=RgbLibError]
-  u8 create_utxos(Online online, boolean up_to, u8? num, u32? size);
+  BlindData blind(string? asset_id, u64? amount, u32? duration_seconds,
+  sequence<string> transport_endpoints);
 
   [Throws=RgbLibError]
-  string create_utxos_begin(Online online, boolean up_to, u8? num, u32? size);
+  u8 create_utxos(Online online, boolean up_to, u8? num, u32? size, f32 fee_rate);
+
+  [Throws=RgbLibError]
+  string create_utxos_begin(Online online, boolean up_to, u8? num, u32? size, f32 fee_rate);
 
   [Throws=RgbLibError]
   u8 create_utxos_end(Online online, string signed_psbt);
 
   [Throws=RgbLibError]
-  void delete_transfers(string? blinded_utxo, string? txid);
+  boolean delete_transfers(string? blinded_utxo, string? txid, boolean no_asset_only);
 
   [Throws=RgbLibError]
-  string drain_to(Online online, string address, boolean destroy_assets);
+  string drain_to(Online online, string address, boolean destroy_assets, f32 fee_rate);
 
   [Throws=RgbLibError]
-  string drain_to_begin(Online online, string address, boolean destroy_assets);
+  string drain_to_begin(Online online, string address, boolean destroy_assets, f32 fee_rate);
 
   [Throws=RgbLibError]
   string drain_to_end(Online online, string signed_psbt);
 
   [Throws=RgbLibError]
-  void fail_transfers(Online online, string? blinded_utxo, string? txid);
+  boolean fail_transfers(Online online, string? blinded_utxo, string? txid, boolean no_asset_only);
 
   string get_address();
 
@@ -249,7 +326,7 @@ interface Wallet {
   Metadata get_asset_metadata(Online online, string asset_id);
 
   [Throws=RgbLibError]
-  Online go_online(boolean skip_consistency_check, string electrum_url, string proxy_url);
+  Online go_online(boolean skip_consistency_check, string electrum_url);
 
   [Throws=RgbLibError]
   AssetRgb20 issue_asset_rgb20(
@@ -257,12 +334,15 @@ interface Wallet {
     sequence<u64> amounts);
 
   [Throws=RgbLibError]
-  AssetRgb121 issue_asset_rgb121(
+  AssetRgb25 issue_asset_rgb25(
     Online online, string name, string? description, u8 precision,
-    sequence<u64> amounts, string? parent_id, string? file_path);
+    sequence<u64> amounts, string? file_path);
 
   [Throws=RgbLibError]
-  Assets list_assets(sequence<AssetType> filter_asset_types);
+  Assets list_assets(sequence<AssetIface> filter_asset_ifaces);
+
+  [Throws=RgbLibError]
+  sequence<Transaction> list_transactions(Online? online);
 
   [Throws=RgbLibError]
   sequence<Transfer> list_transfers(string asset_id);
@@ -271,17 +351,17 @@ interface Wallet {
   sequence<Unspent> list_unspents(boolean settled_only);
 
   [Throws=RgbLibError]
-  void refresh(Online online, string? asset_id);
+  boolean refresh(Online online, string? asset_id, sequence<RefreshFilter> filter);
 
   [Throws=RgbLibError]
   string send(
     Online online, record<DOMString, sequence<Recipient>> recipient_map,
-    boolean donation);
+    boolean donation, f32 fee_rate);
 
   [Throws=RgbLibError]
   string send_begin(
     Online online, record<DOMString, sequence<Recipient>> recipient_map,
-    boolean donation);
+    boolean donation, f32 fee_rate);
 
   [Throws=RgbLibError]
   string send_end(Online online, string signed_psbt);

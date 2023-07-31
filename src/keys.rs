@@ -6,11 +6,12 @@ use bdk::bitcoin::secp256k1::Secp256k1;
 use bdk::bitcoin::Network as BdkNetwork;
 use bdk::keys::bip39::{Language, Mnemonic, WordCount};
 use bdk::keys::{DerivableKey, ExtendedKey, GeneratableKey};
+use serde::{Deserialize, Serialize};
 
 use crate::{BitcoinNetwork, Error};
 
 /// A set of Bitcoin keys used by the RGB wallet
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Keys {
     /// Mnemonic phrase
     pub mnemonic: String,
@@ -56,7 +57,7 @@ pub fn restore_keys(bitcoin_network: BitcoinNetwork, mnemonic: String) -> Result
 #[cfg(test)]
 mod test {
     use super::*;
-    use bitcoin::util::bip32::ExtendedPubKey;
+    use bitcoin::bip32::ExtendedPubKey;
     use std::str::FromStr;
 
     #[test]

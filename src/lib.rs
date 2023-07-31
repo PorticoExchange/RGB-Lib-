@@ -6,7 +6,7 @@
 //! ## Wallet
 //! The main component of the library is the [`Wallet`].
 //!
-//! It allows to create and operate an RGB wallet that can issue, send and receive RGB20 and RGB121
+//! It allows to create and operate an RGB wallet that can issue, send and receive RGB20 and RGB25
 //! assets. The library also manages UTXOs and asset allocations.
 //!
 //! ## Backend
@@ -42,7 +42,7 @@
 //! use rgb_lib::{generate_keys, BitcoinNetwork};
 //!
 //! fn main() -> Result<(), rgb_lib::Error> {
-//!     let data_dir = tempdir::TempDir::new("rgb_wallet")?;
+//!     let data_dir = tempfile::tempdir()?;
 //!     let keys = generate_keys(BitcoinNetwork::Regtest);
 //!     let wallet_data = WalletData {
 //!         data_dir: data_dir.path().to_str().unwrap().to_string(),
@@ -67,8 +67,10 @@ pub mod keys;
 pub(crate) mod utils;
 pub mod wallet;
 
+pub use crate::database::enums::{TransferStatus, TransportType};
 pub use crate::error::Error;
 pub use crate::keys::generate_keys;
 pub use crate::keys::restore_keys;
 pub use crate::utils::BitcoinNetwork;
+pub use crate::wallet::backup::restore_backup;
 pub use crate::wallet::Wallet;
