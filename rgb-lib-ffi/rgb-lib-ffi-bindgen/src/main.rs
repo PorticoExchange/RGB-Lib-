@@ -10,6 +10,7 @@ pub enum Language {
     Kotlin,
     Python,
     Swift,
+    Javascript
 }
 
 impl fmt::Display for Language {
@@ -18,6 +19,7 @@ impl fmt::Display for Language {
             Language::Kotlin => write!(f, "kotlin"),
             Language::Python => write!(f, "python"),
             Language::Swift => write!(f, "swift"),
+            Language::Javascript => write!(f,"javascript"),
         }
     }
 }
@@ -40,6 +42,7 @@ impl FromStr for Language {
             "kotlin" => Ok(Language::Kotlin),
             "python" => Ok(Language::Python),
             "swift" => Ok(Language::Swift),
+            "javascript" => Ok(Language::Javacript),
             _ => Err(Error::UnsupportedLanguage),
         }
     }
@@ -75,7 +78,7 @@ struct Opt {
     udl_file: PathBuf,
 
     /// Language to generate bindings for
-    #[structopt(env = "RGBFFI_BINDGEN_LANGUAGE", short, long, possible_values(&["kotlin","python","swift"]), parse(try_from_str = Language::from_str))]
+    #[structopt(env = "RGBFFI_BINDGEN_LANGUAGE", short, long, possible_values(&["kotlin","python","swift, "Javascript"]), parse(try_from_str = Language::from_str))]
     language: Language,
 
     /// Output directory to put generated language bindings
